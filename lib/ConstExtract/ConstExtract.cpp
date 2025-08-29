@@ -425,6 +425,11 @@ extractCompileTimeValue(Expr *expr, const DeclContext *declContext) {
         break;
       }
     } break;
+    
+    case ExprKind::OpenExistential: {
+      auto openExistentialExpr = cast<OpenExistentialExpr>(expr);
+      return extractCompileTimeValue(openExistentialExpr->getExistentialValue(), declContext);
+    }
 
     case ExprKind::KeyPath: {
         auto keyPathExpr = cast<KeyPathExpr>(expr);
