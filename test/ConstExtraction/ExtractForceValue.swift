@@ -24,7 +24,7 @@ struct MyStruct: MyProto {
 // CHECK-NEXT:         "isStatic": "false",
 // CHECK-NEXT:         "isComputed": "false",
 // CHECK-NEXT:         "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractForceValue.swift",
-// CHECK-NEXT:         "line": 16,
+// CHECK-NEXT:         "line": 15,
 // CHECK-NEXT:         "valueKind": "InitCall",
 // CHECK-NEXT:         "value": {
 // CHECK-NEXT:           "type": "Swift.Optional<ExtractForceValue.CustomKey>",
@@ -38,7 +38,7 @@ struct MyStruct: MyProto {
 // CHECK-NEXT:         "isStatic": "false",
 // CHECK-NEXT:         "isComputed": "false",
 // CHECK-NEXT:         "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractForceValue.swift",
-// CHECK-NEXT:         "line": 17,
+// CHECK-NEXT:         "line": 16,
 // CHECK-NEXT:         "valueKind": "InitCall",
 // CHECK-NEXT:         "value": {
 // CHECK-NEXT:           "type": "Swift.Optional<ExtractForceValue.CustomKey>",
