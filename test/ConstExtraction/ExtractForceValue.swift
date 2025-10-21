@@ -13,26 +13,10 @@ class CustomKey {
 }
 struct MyStruct: MyProto {
   let prop1: CustomKey = CustomKey()!
+  let prop2: CustomKey! = CustomKey()
 }
 
-// CHECK: [
-// CHECK-NEXT:   {
-// CHECK-NEXT:     "typeName": "ExtractForceValue.MyStruct",
-// CHECK-NEXT:     "mangledTypeName": "17ExtractForceValue8MyStructV",
-// CHECK-NEXT:     "kind": "struct",
-// CHECK-NEXT:     "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractForceValue.swift",
-// CHECK-NEXT:     "line": 14,
-// CHECK-NEXT:     "conformances": [
-// CHECK-NEXT:       "ExtractForceValue.MyProto"
-// CHECK-NEXT:     ],
-// CHECK-NEXT:     "allConformances": [
-// CHECK-NEXT:       {
-// CHECK-NEXT:         "protocolName": "ExtractForceValue.MyProto",
-// CHECK-NEXT:         "conformanceDefiningModule": "ExtractForceValue"
-// CHECK-NEXT:       }
-// CHECK-NEXT:     ],
-// CHECK-NEXT:     "associatedTypeAliases": [],
-// CHECK-NEXT:     "properties": [
+// CHECK:          "properties": [
 // CHECK-NEXT:       {
 // CHECK-NEXT:         "label": "prop1",
 // CHECK-NEXT:         "type": "ExtractForceValue.CustomKey",
@@ -40,7 +24,21 @@ struct MyStruct: MyProto {
 // CHECK-NEXT:         "isStatic": "false",
 // CHECK-NEXT:         "isComputed": "false",
 // CHECK-NEXT:         "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractForceValue.swift",
-// CHECK-NEXT:         "line": 15,
+// CHECK-NEXT:         "line": 16,
+// CHECK-NEXT:         "valueKind": "InitCall",
+// CHECK-NEXT:         "value": {
+// CHECK-NEXT:           "type": "Swift.Optional<ExtractForceValue.CustomKey>",
+// CHECK-NEXT:           "arguments": []
+// CHECK-NEXT:         }
+// CHECK-NEXT:       },
+// CHECK-NEXT:       {
+// CHECK-NEXT:         "label": "prop2",
+// CHECK-NEXT:         "type": "Swift.Optional<ExtractForceValue.CustomKey>",
+// CHECK-NEXT:         "mangledTypeName": "n/a - deprecated",
+// CHECK-NEXT:         "isStatic": "false",
+// CHECK-NEXT:         "isComputed": "false",
+// CHECK-NEXT:         "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractForceValue.swift",
+// CHECK-NEXT:         "line": 17,
 // CHECK-NEXT:         "valueKind": "InitCall",
 // CHECK-NEXT:         "value": {
 // CHECK-NEXT:           "type": "Swift.Optional<ExtractForceValue.CustomKey>",
@@ -48,5 +46,3 @@ struct MyStruct: MyProto {
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:     ]
-// CHECK-NEXT:   }
-// CHECK-NEXT: ]
