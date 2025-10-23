@@ -1,6 +1,5 @@
 // RUN: %empty-directory(%t)
 // RUN: echo "[MyProto]" > %t/protocols.json
-
 // RUN: %target-swift-frontend -typecheck -emit-const-values-path %t/ExtractEnums.swiftconstvalues -const-gather-protocols-file %t/protocols.json -primary-file %s
 // RUN: cat %t/ExtractEnums.swiftconstvalues 2>&1 | %FileCheck %s
 
@@ -26,6 +25,8 @@ public struct ArchetypalConformance<T>: MyProto {
 // CHECK-NEXT:            {
 // CHECK-NEXT:              "label": "bar",
 // CHECK-NEXT:              "type": "Any",
+// CHECK-NEXT:              "file": "{{.*}}test{{/|\\\\}}ConstExtraction{{/|\\\\}}ExtractArchetype.swift",
+// CHECK-NEXT:              "line": 14,
 // CHECK-NEXT:              "valueKind": "Type",
 // CHECK-NEXT:              "value": {
 // CHECK-NEXT:                "type": "T",
