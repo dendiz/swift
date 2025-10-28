@@ -127,10 +127,8 @@ void SILFunctionBuilder::addFunctionAttributes(
       }
     }
 
-    if (constant.isFunc() && constant.hasFuncDecl()) {
-      auto func = constant.getFuncDecl();
-      if (auto *EA = ExternAttr::find(Attrs, ExternKind::C))
-        F->setAsmName(EA->getCName(func));
+    if (auto asmName = constant.getAsmName()) {
+      F->setAsmName(*asmName);
     }
   }
 
@@ -210,7 +208,9 @@ void SILFunctionBuilder::addFunctionAttributes(
     F->setPerfConstraints(PerformanceConstraints::NoExistentials);
   } else if (Attrs.hasAttribute<NoObjCBridgingAttr>()) {
     F->setPerfConstraints(PerformanceConstraints::NoObjCBridging);
-  } else if (Attrs.hasAttribute<ManualOwnershipAttr>()) {
+  } else if (M.getASTContext().LangOpts.hasFeature(Feature::ManualOwnership) &&
+             constant && constant.hasDecl() && !constant.isImplicit() &&
+             !Attrs.hasAttribute<NoManualOwnershipAttr>()) {
     F->setPerfConstraints(PerformanceConstraints::ManualOwnership);
   }
 

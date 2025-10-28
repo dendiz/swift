@@ -1047,7 +1047,8 @@ findMissingGenericRequirementForSolutionFix(
 
       return env->mapTypeIntoContext(gp);
     },
-    LookUpConformanceInModule());
+    LookUpConformanceInModule(),
+    SubstFlags::PreservePackExpansionLevel);
   };
 
   type = getTypeInConformanceContext(type);
@@ -5259,10 +5260,10 @@ diagnoseTypeWitnessAvailability(NormalProtocolConformance *conformance,
   switch (domain.getKind()) {
   case AvailabilityDomain::Kind::Universal:
   case AvailabilityDomain::Kind::SwiftLanguageMode:
+  case AvailabilityDomain::Kind::StandaloneSwiftRuntime:
   case AvailabilityDomain::Kind::PackageDescription:
   case AvailabilityDomain::Kind::Platform:
     break;
-  case AvailabilityDomain::Kind::SwiftRuntime:
   case AvailabilityDomain::Kind::Embedded:
   case AvailabilityDomain::Kind::Custom:
     shouldError = true;

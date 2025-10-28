@@ -939,9 +939,15 @@ static bool ParseEnabledFeatureArgs(LangOptions &Opts, ArgList &Args,
     if (!seenFeatures.insert(*feature).second)
       continue;
 
+    bool forMigration = featureMode.has_value();
+
     // Enable the feature if requested.
     if (isEnableFeatureFlag)
-      Opts.enableFeature(*feature, /*forMigration=*/featureMode.has_value());
+      Opts.enableFeature(*feature, forMigration);
+
+    // 'StandaloneSwiftAvailability' implies 'SwiftRuntimeAvailability'
+    if (*feature == Feature::StandaloneSwiftAvailability)
+      Opts.enableFeature(Feature::SwiftRuntimeAvailability, forMigration);
   }
 
   // Since pseudo-features don't have a boolean on/off state, process them in
@@ -3982,6 +3988,11 @@ static bool ParseIRGenArgs(IRGenOptions &Opts, ArgList &Args,
   }
 
   Opts.MergeableTraps = Args.hasArg(OPT_mergeable_traps);
+
+  Opts.EnableClientRetainRelease =
+    Args.hasFlag(OPT_enable_client_retain_release,
+                 OPT_disable_client_retain_release,
+                 Opts.EnableClientRetainRelease);
 
   Opts.EnableObjectiveCProtocolSymbolicReferences =
     Args.hasFlag(OPT_enable_objective_c_protocol_symbolic_references,

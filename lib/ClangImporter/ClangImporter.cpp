@@ -1021,9 +1021,8 @@ bool ClangImporter::canReadPCH(StringRef PCHFilename) {
 
   // Note: Reusing the file manager is safe; this is a component that's already
   // reused when building PCM files for the module cache.
-  CI.setVirtualFileSystem(
-      Impl.Instance->getFileManager().getVirtualFileSystemPtr());
-  CI.setFileManager(&Impl.Instance->getFileManager());
+  CI.setVirtualFileSystem(Impl.Instance->getVirtualFileSystemPtr());
+  CI.setFileManager(Impl.Instance->getFileManagerPtr());
   CI.createSourceManager();
   auto &clangSrcMgr = CI.getSourceManager();
   auto FID = clangSrcMgr.createFileID(
@@ -1410,7 +1409,6 @@ std::unique_ptr<ClangImporter> ClangImporter::create(
   auto actualDiagClient = std::make_unique<ClangDiagnosticConsumer>(
       importer->Impl, instance.getDiagnosticOpts(),
       importerOpts.DumpClangDiagnostics);
-
   instance.createVirtualFileSystem(std::move(VFS), actualDiagClient.get());
   instance.createFileManager();
   instance.createDiagnostics(actualDiagClient.release());
@@ -1927,8 +1925,8 @@ std::string ClangImporter::getBridgingHeaderContents(
       std::move(invocation), Impl.Instance->getPCHContainerOperations(),
       &Impl.Instance->getModuleCache());
   rewriteInstance.setVirtualFileSystem(
-      Impl.Instance->getFileManager().getVirtualFileSystemPtr());
-  rewriteInstance.setFileManager(&Impl.Instance->getFileManager());
+      Impl.Instance->getVirtualFileSystemPtr());
+  rewriteInstance.setFileManager(Impl.Instance->getFileManagerPtr());
   rewriteInstance.createDiagnostics(new clang::IgnoringDiagConsumer);
   rewriteInstance.createSourceManager();
   rewriteInstance.setTarget(&Impl.Instance->getTarget());
@@ -1978,8 +1976,7 @@ std::string ClangImporter::getBridgingHeaderContents(
     return "";
   }
 
-  if (auto fileInfo =
-          rewriteInstance.getFileManager().getOptionalFileRef(headerPath)) {
+  if (auto fileInfo = rewriteInstance.getFileManager().getOptionalFileRef(headerPath)) {
     fileSize = fileInfo->getSize();
     fileModTime = fileInfo->getModificationTime();
   }
@@ -2032,8 +2029,8 @@ ClangImporter::cloneCompilerInstanceForPrecompiling() {
       std::move(invocation), Impl.Instance->getPCHContainerOperations(),
       &Impl.Instance->getModuleCache());
   clonedInstance->setVirtualFileSystem(
-      Impl.Instance->getFileManager().getVirtualFileSystemPtr());
-  clonedInstance->setFileManager(&Impl.Instance->getFileManager());
+      Impl.Instance->getVirtualFileSystemPtr());
+  clonedInstance->setFileManager(Impl.Instance->getFileManagerPtr());
   clonedInstance->createDiagnostics(&Impl.Instance->getDiagnosticClient(),
                                     /*ShouldOwnClient=*/false);
   clonedInstance->createSourceManager();
@@ -2562,6 +2559,14 @@ PlatformAvailability::PlatformAvailability(const LangOptions &langOpts)
   case PlatformKind::visionOSApplicationExtension:
     break;
 
+  case PlatformKind::DriverKit:
+    deprecatedAsUnavailableMessage = "";
+    break;
+
+  case PlatformKind::Swift:
+  case PlatformKind::anyAppleOS:
+    llvm_unreachable("Unexpected platform");
+
   case PlatformKind::FreeBSD:
     deprecatedAsUnavailableMessage = "";
     break;
@@ -2616,6 +2621,13 @@ bool PlatformAvailability::isPlatformRelevant(StringRef name) const {
   case PlatformKind::visionOSApplicationExtension:
     return name == "xros" || name == "xros_app_extension" ||
            name == "visionos" || name == "visionos_app_extension";
+
+  case PlatformKind::DriverKit:
+    return name == "driverkit";
+
+  case PlatformKind::Swift:
+  case PlatformKind::anyAppleOS:
+    break; // Unexpected
 
   case PlatformKind::FreeBSD:
     return name == "freebsd";
@@ -2693,6 +2705,15 @@ bool PlatformAvailability::treatDeprecatedAsUnavailable(
   case PlatformKind::visionOSApplicationExtension:
     // No deprecation filter on xrOS
     return false;
+
+  case PlatformKind::DriverKit:
+    // No deprecation filter on DriverKit
+    // FIXME: [availability] This should probably have a value.
+    return false;
+
+  case PlatformKind::Swift:
+  case PlatformKind::anyAppleOS:
+    break; // Unexpected
 
   case PlatformKind::FreeBSD:
     // No deprecation filter on FreeBSD
@@ -8707,9 +8728,14 @@ ExplicitSafety ClangTypeExplicitSafety::evaluate(
   if (auto recordDecl = clangType->getAsTagDecl()) {
     // If we reached this point the types is not imported as a shared reference,
     // so we don't need to check the bases whether they are shared references.
-    return evaluateOrDefault(evaluator,
-                             ClangDeclExplicitSafety({recordDecl, false}),
-                             ExplicitSafety::Unspecified);
+    auto req = ClangDeclExplicitSafety({recordDecl, false});
+    if (evaluator.hasActiveRequest(req))
+      // Cycles are allowed in templates, e.g.:
+      //   template <typename>   class Foo { ... }; // throws away template arg
+      //   template <typename T> class Bar : Foo<Bar<T>> { ... };
+      // We need to avoid them here.
+      return ExplicitSafety::Unspecified;
+    return evaluateOrDefault(evaluator, req, ExplicitSafety::Unspecified);
   }
 
   // Everything else is safe.
@@ -8787,11 +8813,13 @@ CustomRefCountingOperationResult CustomRefCountingOperation::evaluate(
 
 /// Check whether the given Clang type involves an unsafe type.
 static bool hasUnsafeType(Evaluator &evaluator, clang::QualType clangType) {
-
-  auto safety =
-      evaluateOrDefault(evaluator, ClangTypeExplicitSafety({clangType}),
-                        ExplicitSafety::Unspecified);
-  return safety == ExplicitSafety::Unsafe;
+  auto req = ClangTypeExplicitSafety({clangType});
+  if (evaluator.hasActiveRequest(req))
+    // If there is a cycle in a type, assume ExplicitSafety is Unspecified,
+    // i.e., not unsafe:
+    return false;
+  return evaluateOrDefault(evaluator, req, ExplicitSafety::Unspecified) ==
+         ExplicitSafety::Unsafe;
 }
 
 ExplicitSafety
@@ -8829,6 +8857,29 @@ ClangDeclExplicitSafety::evaluate(Evaluator &evaluator,
           ClangTypeEscapability({recordDecl->getTypeForDecl(), nullptr}),
           CxxEscapability::Unknown) != CxxEscapability::Unknown)
     return ExplicitSafety::Safe;
+
+  // A template class is unsafe if any of its type arguments are unsafe.
+  // Note that this does not rely on the record being defined.
+  if (const auto *ctsd =
+          dyn_cast<clang::ClassTemplateSpecializationDecl>(recordDecl)) {
+    for (auto arg : ctsd->getTemplateArgs().asArray()) {
+      switch (arg.getKind()) {
+      case clang::TemplateArgument::Type:
+        if (hasUnsafeType(evaluator, arg.getAsType()))
+          return ExplicitSafety::Unsafe;
+        break;
+      case clang::TemplateArgument::Pack:
+        for (auto pkArg : arg.getPackAsArray()) {
+          if (pkArg.getKind() == clang::TemplateArgument::Type &&
+              hasUnsafeType(evaluator, pkArg.getAsType()))
+            return ExplicitSafety::Unsafe;
+        }
+        break;
+      default:
+        continue;
+      }
+    }
+  }
   
   // If we don't have a definition, leave it unspecified.
   recordDecl = recordDecl->getDefinition();
@@ -8842,7 +8893,7 @@ ClangDeclExplicitSafety::evaluate(Evaluator &evaluator,
         return ExplicitSafety::Unsafe;
     }
   }
-  
+
   // Check the fields.
   for (auto field : recordDecl->fields()) {
     if (hasUnsafeType(evaluator, field->getType()))

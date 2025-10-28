@@ -2539,8 +2539,26 @@ public:
     if (builtinKind == BuiltinValueKind::ExtractFunctionIsolation) {
       require(false, "this builtin is pre-SIL-only");
     }
+
+    // Validate all "SIL builtins" never show up as BuiltinInst since they
+    // should just result in sequences of non-builtin inst SIL instructions
+    // being emitted and should never show up as a BuiltinInst.
+    switch (*builtinKind) {
+    case BuiltinValueKind::None:
+      break;
+#define BUILTIN_SIL_OPERATION(id, name, overload)                              \
+  case BuiltinValueKind::id:                                                   \
+    require(false,                                                             \
+            "this builtin should never show up as builtin inst. It should "    \
+            "only result in other SIL instructions being emitted by SILGen");  \
+    break;
+#define BUILTIN(ID, Name, Attrs)                                               \
+  case BuiltinValueKind::ID:                                                   \
+    break;
+#include "swift/AST/Builtins.def"
+    }
   }
-  
+
   void checkFunctionRefBaseInst(FunctionRefBaseInst *FRI) {
     auto fnType = requireObjectType(SILFunctionType, FRI,
                                     "result of function_ref");
@@ -2728,6 +2746,8 @@ public:
     requireSameType(LBI->getOperand()->getType().getObjectType(),
                     LBI->getType(),
                     "Load operand type and result type mismatch");
+    require(F.getModule().getStage() == SILStage::Raw || !LBI->isUnchecked(),
+            "load_borrow's unchecked bit is on");
   }
 
   void checkBeginBorrowInst(BeginBorrowInst *bbi) {
@@ -3189,9 +3209,9 @@ public:
       CanSILFunctionType initTy = initFn->getType().castTo<SILFunctionType>();
       SILFunctionConventions initConv(initTy, AI->getModule());
 
-      require(initConv.getNumIndirectSILResults() ==
+      require(initConv.getResults().size() ==
                   AI->getNumInitializedProperties(),
-              "init function has invalid number of indirect results");
+              "init function has invalid number of results");
       checkAssigOrInitInstAccessorArgs(Src->getType(), initConv);
     }
 
@@ -6709,6 +6729,11 @@ public:
             "Result and operand must have the same type, today.");
   }
 
+  void checkUncheckedOwnershipInst(UncheckedOwnershipInst *uoi) {
+    require(F.getModule().getStage() == SILStage::Raw,
+            "unchecked_ownership is valid only in raw SIL");
+  }
+
   void checkAllocPackMetadataInst(AllocPackMetadataInst *apmi) {
     require(apmi->getIntroducer()->mayRequirePackMetadata(*apmi->getFunction()),
             "Introduces instruction of kind which cannot emit on-stack pack "
@@ -6752,9 +6777,9 @@ public:
     bool FoundThrowBlock = false;
     bool FoundUnwindBlock = false;
     for (auto &BB : *F) {
-      if (isa<ReturnInst>(BB.getTerminator())) {
-        require(!FoundReturnBlock,
-                "more than one return block in function");
+      if (isa<ReturnInst>(BB.getTerminator()) ||
+          isa<ReturnBorrowInst>(BB.getTerminator())) {
+        require(!FoundReturnBlock, "more than one return block in function");
         FoundReturnBlock = true;
       } else if (isa<ThrowInst>(BB.getTerminator()) ||
                  isa<ThrowAddrInst>(BB.getTerminator())) {
