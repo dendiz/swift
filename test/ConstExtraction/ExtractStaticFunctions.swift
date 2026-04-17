@@ -11,7 +11,11 @@ enum Bar {
     case two(item: String)
 }
 
-struct Baz {
+class Doh {
+    init(_ p: String) {}
+}
+
+class Baz {
     static var one: Baz {
         Baz()
     }
@@ -23,6 +27,10 @@ struct Baz {
     static func three() -> Baz {
         return Baz()
     }
+    var instanceProp: String = ""
+    var instancePropSelf: Baz {
+        self
+    }
 }
 
 struct Statics: MyProto {
@@ -31,6 +39,8 @@ struct Statics: MyProto {
     var baz1 = Baz.one
     var baz2 = Baz.two(item: "baz")
     var baz3 = Baz.three()
+    var baz4 = Baz.one.instancePropSelf.instanceProp
+    var baz5 = Doh(Baz.one.instancePropSelf.instanceProp)
 }
 
 // CHECK:       "label": "bar1",
@@ -82,4 +92,70 @@ struct Statics: MyProto {
 // CHECK-NEXT:    "type": "ExtractStaticFunctions.Baz",
 // CHECK-NEXT:    "memberLabel": "three",
 // CHECK-NEXT:    "arguments": []
+// CHECK-NEXT:  }
+// CHECK:       "label": "baz4",
+// CHECK-NEXT:  "type": "Swift.String",
+// CHECK:       "valueKind": "ChainedMemberReference",
+// CHECK-NEXT:  "value": {
+// CHECK-NEXT:    "chain": [
+// CHECK-NEXT:      {
+// CHECK-NEXT:        "valueKind": "MemberReference",
+// CHECK-NEXT:        "value": {
+// CHECK-NEXT:          "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:          "memberLabel": "one"
+// CHECK-NEXT:        }
+// CHECK-NEXT:      },
+// CHECK-NEXT:      {
+// CHECK-NEXT:        "valueKind": "MemberReference",
+// CHECK-NEXT:        "value": {
+// CHECK-NEXT:          "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:          "memberLabel": "instancePropSelf"
+// CHECK-NEXT:        }
+// CHECK-NEXT:      },
+// CHECK-NEXT:      {
+// CHECK-NEXT:        "valueKind": "MemberReference",
+// CHECK-NEXT:        "value": {
+// CHECK-NEXT:          "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:          "memberLabel": "instanceProp"
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:    ]
+// CHECK-NEXT:  }
+// CHECK:       "label": "baz5",
+// CHECK-NEXT:  "type": "ExtractStaticFunctions.Doh",
+// CHECK:       "valueKind": "InitCall",
+// CHECK-NEXT:  "value": {
+// CHECK-NEXT:    "type": "ExtractStaticFunctions.Doh",
+// CHECK-NEXT:    "arguments": [
+// CHECK-NEXT:      {
+// CHECK-NEXT:        "label": "",
+// CHECK-NEXT:        "type": "Swift.String",
+// CHECK-NEXT:        "valueKind": "ChainedMemberReference",
+// CHECK-NEXT:        "value": {
+// CHECK-NEXT:          "chain": [
+// CHECK-NEXT:            {
+// CHECK-NEXT:              "valueKind": "MemberReference",
+// CHECK-NEXT:              "value": {
+// CHECK-NEXT:                "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:                "memberLabel": "one"
+// CHECK-NEXT:              }
+// CHECK-NEXT:            },
+// CHECK-NEXT:            {
+// CHECK-NEXT:              "valueKind": "MemberReference",
+// CHECK-NEXT:              "value": {
+// CHECK-NEXT:                "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:                "memberLabel": "instancePropSelf"
+// CHECK-NEXT:              }
+// CHECK-NEXT:            },
+// CHECK-NEXT:            {
+// CHECK-NEXT:              "valueKind": "MemberReference",
+// CHECK-NEXT:              "value": {
+// CHECK-NEXT:                "baseType": "ExtractStaticFunctions.Baz",
+// CHECK-NEXT:                "memberLabel": "instanceProp"
+// CHECK-NEXT:              }
+// CHECK-NEXT:            }
+// CHECK-NEXT:          ]
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:    ]
 // CHECK-NEXT:  }
