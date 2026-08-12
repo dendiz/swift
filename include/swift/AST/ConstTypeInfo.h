@@ -43,6 +43,7 @@ public:
     FunctionCall,
     StaticFunctionCall,
     MemberReference,
+    ChainedMemberReference,
     InterpolatedString,
     NilLiteral,
     Runtime,
@@ -504,6 +505,27 @@ public:
 private:
   swift::Type BaseType;
   std::string MemberLabel;
+};
+
+/// A chained member reference, e.g. `Baz.one.two`
+/// represented as a flattened chain of CompileTimeValue
+class ChainedMemberReferenceValue : public CompileTimeValue {
+public:
+  ChainedMemberReferenceValue(
+      std::vector<std::shared_ptr<CompileTimeValue>> Chain)
+      : CompileTimeValue(ValueKind::ChainedMemberReference),
+        Chain(std::move(Chain)) {}
+
+  const std::vector<std::shared_ptr<CompileTimeValue>> &getChain() const {
+    return Chain;
+  }
+
+  static bool classof(const CompileTimeValue *T) {
+    return T->getKind() == ValueKind::ChainedMemberReference;
+  }
+
+private:
+  std::vector<std::shared_ptr<CompileTimeValue>> Chain;
 };
 
 /// A representation of an Interpolated String Literal

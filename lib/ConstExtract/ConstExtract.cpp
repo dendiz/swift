@@ -477,13 +477,32 @@ extractCompileTimeValue(Expr *expr, const DeclContext *declContext) {
 
     case ExprKind::MemberRef: {
       auto memberExpr = cast<MemberRefExpr>(expr);
-      if (isa<TypeExpr>(memberExpr->getBase())) {
-        auto baseTypeExpr = cast<TypeExpr>(memberExpr->getBase());
-        auto label = memberExpr->getDecl().getDecl()->getBaseIdentifier().str();
+      auto *base = memberExpr->getBase();
+      auto label =
+          memberExpr->getDecl().getDecl()->getBaseIdentifier().str().str();
+
+      if (isa<TypeExpr>(base)) {
         return std::make_shared<MemberReferenceValue>(
-            baseTypeExpr->getInstanceType(), label.str());
+            cast<TypeExpr>(base)->getInstanceType(), label);
       }
-      break;
+
+      // recurse through LoadExpr to get to the underlying nodes
+      auto baseValue = extractCompileTimeValue(base, declContext);
+      if (baseValue->getKind() == CompileTimeValue::ValueKind::Runtime)
+        break;
+
+      // add to the chain if it exists
+      std::vector<std::shared_ptr<CompileTimeValue>> chain;
+      if (auto *chained =
+              dyn_cast<ChainedMemberReferenceValue>(baseValue.get()))
+        chain = chained->getChain();
+      else
+        chain.push_back(std::move(baseValue));
+
+      // baseType for the new link = result type of the base expression
+      chain.push_back(std::make_shared<MemberReferenceValue>(
+          base->getType()->getRValueType(), label));
+      return std::make_shared<ChainedMemberReferenceValue>(std::move(chain));
     }
 
     case ExprKind::InterpolatedStringLiteral: {
@@ -986,6 +1005,19 @@ void writeValue(llvm::json::OStream &JSON,
       JSON.attribute("baseType", toFullyQualifiedTypeNameString(
                                      memberReferenceValue->getBaseType()));
       JSON.attribute("memberLabel", memberReferenceValue->getMemberLabel());
+    });
+    break;
+  }
+
+  case CompileTimeValue::ValueKind::ChainedMemberReference: {
+    auto chainedValue = cast<ChainedMemberReferenceValue>(value);
+    JSON.attribute("valueKind", "ChainedMemberReference");
+    JSON.attributeObject("value", [&]() {
+      JSON.attributeArray("chain", [&]() {
+        for (const auto &link : chainedValue->getChain()) {
+          JSON.object([&]() { writeValue(JSON, link); });
+        }
+      });
     });
     break;
   }
